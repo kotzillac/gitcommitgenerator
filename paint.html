@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>GitHub Grid Painter & Exporter (Count Mode)</title>
+    <style>
+        :root {
+            --color-level-0: #161b22;
+            --color-level-1: #0e4429;
+            --color-level-2: #006d32;
+            --color-level-3: #26a641;
+            --color-level-4: #39d353;
+        }
+
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        .container {
+            background: #0d1117;
+            padding: 24px;
+            border-radius: 6px;
+            border: 1px solid #161b22;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+
+        .header-block {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        h3 {
+            margin: 0;
+            font-weight: 400;
+        }
+
+        .brush-panel {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #0d1117;
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid #30363d;
+        }
+
+        .brush-panel span {
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        .brush-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .brush-color.active {
+            border-color: #ffffff;
+            box-shadow: 0 0 4px #ffffff;
+        }
+
+        .graph-wrapper {
+            display: flex;
+        }
+
+        .days-labels {
+            display: grid;
+            grid-template-rows: repeat(7, 10px);
+            grid-row-gap: 3px;
+            margin-right: 8px;
+            font-size: 9px;
+            color: #8b949e;
+            align-items: center;
+        }
+
+        .contrib-grid {
+            display: grid;
+            grid-auto-flow: column;
+            grid-template-rows: repeat(7, 10px);
+            grid-gap: 3px;
+        }
+
+        .cell {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            background-color: var(--color-level-0);
+            cursor: pointer;
+        }
+
+        .cell.empty {
+            background-color: transparent;
+            cursor: default;
+        }
+
+        .cell[data-level="0"] { background-color: var(--color-level-0); }
+        .cell[data-level="1"] { background-color: var(--color-level-1); }
+        .cell[data-level="2"] { background-color: var(--color-level-2); }
+        .cell[data-level="3"] { background-color: var(--color-level-3); }
+        .cell[data-level="4"] { background-color: var(--color-level-4); }
+
+        .footer-block {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .btn-export {
+            background-color: #238636;
+            color: #ffffff;
+            border: 1px solid rgba(240,246,252,0.1);
+            padding: 6px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn-export:hover {
+            background-color: #2ea043;
+        }
+
+        .output-container {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 720px;
+            display: none;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            background-color: #0d1117;
+            color: #7ee787;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-block">
+        <h3>Рисование по сетке контрибьютов (2026)</h3>
+        <div class="brush-panel">
+            <span>Кисть:</span>
+            <div class="brush-color active" data-brush="1" style="background-color: var(--color-level-1)"></div>
+            <div class="brush-color" data-brush="2" style="background-color: var(--color-level-2)"></div>
+            <div class="brush-color" data-brush="3" style="background-color: var(--color-level-3)"></div>
+            <div class="brush-color" data-brush="4" style="background-color: var(--color-level-4)"></div>
+            <div class="brush-color" data-brush="0" style="background-color: var(--color-level-0); border: 1px solid #30363d;"></div>
+        </div>
+    </div>
+    
+    <div class="graph-wrapper">
+        <div class="days-labels">
+            <div></div><div>Mon</div><div></div><div>Wed</div><div></div><div>Fri</div><div></div>
+        </div>
+        <div class="contrib-grid" id="grid"></div>
+    </div>
+
+    <div class="footer-block">
+        <span style="font-size: 12px; color: #8b949e;">Зажмите левую кнопку мыши и водите для рисования</span>
+        <button class="btn-export" id="exportBtn">Экспортировать JSON</button>
+    </div>
+</div>
+
+<div class="output-container" id="outputBlock">
+    <h4 style="margin-bottom: 8px;">Результат экспорта (`count` пересчитан автоматически):</h4>
+    <textarea id="jsonOutput" readonly></textarea>
+</div>
+
+<script>
+    const grid = document.getElementById('grid');
+    const exportBtn = document.getElementById('exportBtn');
+    const outputBlock = document.getElementById('outputBlock');
+    const jsonOutput = document.getElementById('jsonOutput');
+    const year = 2026;
+
+    let isDrawing = false;
+    let currentBrushLevel = "1";
+
+    document.querySelectorAll('.brush-color').forEach(el => {
+        el.addEventListener('click', () => {
+            document.querySelector('.brush-color.active').classList.remove('active');
+            el.classList.add('active');
+            currentBrushLevel = el.getAttribute('data-brush');
+        });
+    });
+
+    window.addEventListener('mousedown', () => isDrawing = true);
+    window.addEventListener('mouseup', () => isDrawing = false);
+
+    const firstDayOfYear = new Date(year, 0, 1).getDay();
+    const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+    const totalDays = isLeapYear ? 366 : 365;
+
+    for (let i = 0; i < firstDayOfYear; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'cell empty';
+        grid.appendChild(emptyCell);
+    }
+
+    function paintCell(cell) {
+        cell.setAttribute('data-level', currentBrushLevel);
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.setAttribute('data-level', '0');
+
+        const dateObj = new Date(year, 0, day);
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        const dateISO = `${yyyy}-${mm}-${dd}`;
+        
+        cell.setAttribute('data-date', dateISO);
+        cell.title = dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+
+        cell.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            paintCell(cell);
+        });
+
+        cell.addEventListener('mouseenter', () => {
+            if (isDrawing) {
+                paintCell(cell);
+            }
+        });
+
+        grid.appendChild(cell);
+    }
+
+    // ЛОГИКА КОНВЕРТАЦИИ УРОВНЯ В КОЛИЧЕСТВО (COUNT)
+    exportBtn.addEventListener('click', () => {
+        const activeCells = grid.querySelectorAll('.cell:not(.empty)');
+        const resultData = [];
+
+        // Карта соответствия: уровень цвета -> фиксированное число коммитов
+        // GitHub красит в максимальный цвет то, что имеет самый большой count на графике.
+        // Выставляя 1, 3, 6, 10, мы гарантируем правильную прогрессию оттенков.
+        const levelToCountMap = {
+            0: 0,  // Серый
+            1: 1,  // Светло-зеленый
+            2: 3,  // Средне-зеленый
+            3: 6,  // Зеленый
+            4: 10  // Ярко-зеленый
+        };
+
+        activeCells.forEach(cell => {
+            const date = cell.getAttribute('data-date');
+            const level = parseInt(cell.getAttribute('data-level'), 10);
+            const count = levelToCountMap[level];
+            
+            resultData.push({
+                date: date,
+                count: count
+            });
+        });
+
+        jsonOutput.value = JSON.stringify(resultData, null, 2);
+        outputBlock.style.display = 'block';
+        jsonOutput.scrollIntoView({ behavior: 'smooth' });
+    });
+</script>
+
+</body>
+</html>
